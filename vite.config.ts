@@ -10,5 +10,6 @@ export default defineConfig({
                 charset: false
             },
         }
-    }
+    },
+    base: './'
 })

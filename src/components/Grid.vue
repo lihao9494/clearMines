@@ -30,7 +30,6 @@
 
     // 监听 open
     watch(() => props.open, (newOpen) => {
-        if (flag.value) return;
         if (!actived.value && newOpen) changeActived();
     });
     
@@ -39,6 +38,7 @@
     let mineClicked = ref(false);
     // 点击 grid 执行参数
     function changeActived() {
+        // 遇旗
         if (flag.value) {
             emit('noOpenFlag');
             return;
@@ -78,7 +78,7 @@
 </template>
 
 <style lang="less" scoped>
-@size: 1rem;
+@size: 1.2rem;
 .one-grid {
     min-width: 10px;
     min-height: 10px;

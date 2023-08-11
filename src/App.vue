@@ -126,6 +126,7 @@
         // 左右键功能
         let mousedownStartTime:Date | null = null;
         let button:number | null = null;
+        
         Gamebox.value?.addEventListener('mousedown', (e: MouseEvent) => {
             const element:HTMLElement  = e?.target as HTMLElement;
             const bottonP = e?.button;
@@ -139,11 +140,7 @@
                     if (diff < 1000) {
                         const label:string | null = element?.getAttribute('data-label');
                         const [ rowS, colS ] = label?.split(',') as string[];
-                        computedNine(Number(rowS), Number(colS), (iRow:number, iCol:number) => {
-                            const key = `${iRow},${iCol}`;
-                            // console.log('Gamebox-mouse-key', key, openGird);
-                            if (!openGird.has(key)) openGird.add(key);
-                        });
+                        openAmbient(rowS, colS);
                     }
                 }
             }
@@ -154,9 +151,19 @@
         });
     });
 
+    // 展开周围九格
+    function openAmbient (rowS: string | number, colS: string | number) {
+        computedNine(Number(rowS), Number(colS), (iRow:number, iCol:number) => {
+            const key = `${iRow},${iCol}`;
+            // console.log('Gamebox-mouse-key', key, openGird);
+            if (!openGird.has(key)) openGird.add(key);
+        });
+    }
+
     // 清 openGird
     function clearOpenGrid (iRow:number, iCol:number) {
         const key = `${iRow},${iCol}`;
+        // console.log('clearOpenGrid', key, openGird.has(key), openGird);
         if (openGird.has(key)) openGird.delete(key);
     }
 </script>
@@ -170,11 +177,11 @@
                     :msg="item"
                     :data-label="`${row - 1},${col}`"
                     :open="openGird.has(`${row - 1},${col}`)"
-                    @click.capture="firstClick ? initGame(row - 1, col) : '';"
-                    @click="isWin(row - 1, col);"
-                    @clearAmbinetGrid="clearAmbinetGrid(row - 1, col);"
+                    @click.capture="firstClick ? initGame(row - 1, col) : ''"
+                    @click="isWin(row - 1, col)"
+                    @clearAmbinetGrid="clearAmbinetGrid(row - 1, col)"
                     @boom="showAllMines"
-                    @noOpenFlag="clearOpenGrid(row - 1, col);"
+                    @noOpenFlag="clearOpenGrid(row - 1, col)"
                 />
             </template>
         </div>
@@ -193,5 +200,8 @@
     left: 0;
     width: 100%;
     text-align: center;
+}
+body {
+    background-color: #111;
 }
 </style>

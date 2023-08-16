@@ -5,9 +5,10 @@
     const mineICON = '●';
     let firstClick = ref(true);
     let GameOver = ref('');
+    let minesNum = ref(0);
     // 矩阵【行，列】
     const numSquare:[number, number] = [10, 10];
-    const minesNum:number = Math.floor(numSquare[0] * numSquare[1] * 0.1);
+    minesNum.value = Math.floor(numSquare[0] * numSquare[1] * 0.1);
     const minesArray:string[] = [];
     const square:string[][] = new Array(numSquare[0]);
     for (let i = 0; i < numSquare[0]; i++) {
@@ -18,7 +19,7 @@
         firstClick.value = false;
         // console.log('initGame');
         // 随机放雷
-        for (let mineIndex = 0; mineIndex < minesNum;) {
+        for (let mineIndex = 0; mineIndex < minesNum.value;) {
             const row = Math.floor(Math.random() * numSquare[0]);
             const col = Math.floor(Math.random() * numSquare[1]);
 
@@ -106,7 +107,7 @@
     }
 
     // 判赢
-    const winNum = numSquare[0] * numSquare[1] - minesNum;
+    const winNum = numSquare[0] * numSquare[1] - minesNum.value;
     async function isWin(row:number, col:number) {
         if (GameOver.value.includes('LOSE')) return;
         openGird.add(`${row},${col}`);

@@ -11,7 +11,7 @@
 
     // 矩阵【行，列】
     const numSquare:[number, number] = [12, 12];
-    minesNum.value = Math.floor(numSquare[0] * numSquare[1] * 0.15);
+    minesNum.value = Math.floor(numSquare[0] * numSquare[1] * 0.18);
     const minesArray:string[] = [];
     interface squareT {
         msg: string,
@@ -23,12 +23,15 @@
         num?: boolean
     };
     const square:squareT[][] = reactive(new Array(numSquare[0]));
+    const openGird:Set<string> = reactive(new Set<string>());
 
     function newGame () {
         console.log('newGame');
         firstClick.value = true;
         GameOver.value = '';
         flagNum.value = 0;
+        openGird.clear();
+        minesArray.splice(0, minesNum.value);
         for (let i = 0; i < numSquare[0]; i++) {
             const obj = {
                 msg: '',
@@ -137,7 +140,6 @@
     }
 
     // 遇到空格展示大片
-    const openGird:Set<string> = reactive(new Set<string>());
     function clearAmbinetGrid(row:number, col:number):void {
         computedNine(row, col, (iRow:number, iCol:number) => {
             const key = `${iRow},${iCol}`;
@@ -169,47 +171,48 @@
         if (openGird.size == winNum && GameOver.value == '') GameOver.value = 'WIN!';
     });
     
-    const Gamebox = ref<HTMLDivElement | null>(null);
     onMounted(() => {
         // console.log('Gamebox.value', Gamebox.value);
-        
-        // 左右键功能
-        let mousedownStartTime:Date | null = null;
-        let button:number | null = null;
-        
-        Gamebox.value?.addEventListener('mousedown', (e: MouseEvent) => {
-            const element:HTMLElement  = e?.target as HTMLElement;
-            const bottonP = e?.button;
-            if ([0, 2].includes(bottonP)) {
-                if (button == null) {
-                    button = bottonP;
-                    mousedownStartTime = new Date();
-                } else if ((button == 0 && bottonP == 2) || (button == 2 && bottonP == 0)) {
-                    let mousedownEndTime:Date = new Date();
-                    let diff = mousedownEndTime.getTime() - (mousedownStartTime?.getTime() || 0);
-                    if (diff < 1000) {
-                        const label:string | null = element?.getAttribute('data-label');
-                        const [ rowS, colS ] = label?.split(',') as string[];
-                        openAmbient(rowS, colS);
-                    }
-                }
-            }
-        });
-        Gamebox.value?.addEventListener('mouseup', () => {
-            button = null;
-            mousedownStartTime = null;
-        });
-
         let width = document.querySelector('.one-grid')?.getBoundingClientRect().width;
         touchAllX = Number(width) / 5;
     });
 
+    // 左右键功能
+    let mousedownStartTime:Date | null = null;
+    let button:number | null = null;
+    function gameBoxMouseDown (e: MouseEvent) {
+        const element:HTMLElement  = e?.target as HTMLElement;
+        const bottonP = e?.button;
+        if ([0, 2].includes(bottonP)) {
+            if (button == null) {
+                button = bottonP;
+                mousedownStartTime = new Date();
+            } else if ((button == 0 && bottonP == 2) || (button == 2 && bottonP == 0)) {
+                let mousedownEndTime:Date = new Date();
+                let diff = mousedownEndTime.getTime() - (mousedownStartTime?.getTime() || 0);
+                if (diff < 1000) {
+                    const label:string | null = element?.getAttribute('data-label');
+                    const [ rowS, colS ] = label?.split(',') as string[];
+                    openAmbient(rowS, colS);
+                }
+            }
+        }
+    }
+    function gameBoxMouseUp () {
+        button = null;
+        mousedownStartTime = null;
+    }
+
     // 展开周围九格
     function openAmbient (rowS: string | number, colS: string | number) {
+        if (GameOver.value) return;
+
         computedNine(Number(rowS), Number(colS), (iRow:number, iCol:number) => {
             const key = `${iRow},${iCol}`;
             // console.log('Gamebox-mouse-key', key, openGird);
-            if (!openGird.has(key)) openGridFunc(iRow, iCol);
+            // 触雷
+            const item = square[iRow][iCol]; 
+            if (meetMine(item) && !openGird.has(key)) openGridFunc(iRow, iCol);
         });
     }
 
@@ -219,26 +222,27 @@
 
         item.flag = !item.flag;
 
-        if (item.flag) {
-            flagNum.value++;
-        } else {
-            flagNum.value--;
-        }
+        item.flag ? flagNum.value++ : flagNum.value--;
     }
     // 点击 grid 执行参数
     function changeActived(row:number, col:number) {
+        if (GameOver.value) return;
+
         const item = square[row][col];
         console.log('changeActived', item, row, col);
+        debugger;
+        meetMine(item) && openGridFunc(row, col);
+    }
 
+    function meetMine (item:squareT) {
         // 触雷
-        if (item.msg == mineICON) {
+        if (item.msg == mineICON && !item.flag) {
             item.actived = true;
             item.mineClicked = true;
             showAllMines();
-            return;
+            return false;
         }
-
-        openGridFunc(row, col);
+        return true;
     }
 
     // touch 事件触发置旗
@@ -268,7 +272,10 @@
 <template>
     <p class="Upon" v-if="GameOver">{{ GameOver }}</p>
     <p class="Upon tip" v-else>未标记炸弹数：{{ minesNum - flagNum }}</p>
-    <div class="game-box" ref="Gamebox">
+    <div :class="['game-box', { 'win': GameOver.includes('WIN') }]"
+        @mousedown="gameBoxMouseDown"
+        @mouseup="gameBoxMouseUp"
+    >
         <div v-for="row in square.length" class="grid-line">
             <template v-for="(item, col) in square[row - 1]" :key="`${row - 1},${col}`">
                 <div
@@ -312,7 +319,7 @@
     text-align: center;
 
     &.tip {
-        font-size: @size * .7;
+        font-size: @size * .5;
     }
 }
 body {
@@ -347,18 +354,20 @@ body {
     }
 
     &.flag {
+        position: relative;
+        
         &::before {
             content: '✿';
             display: inline-block;
             color: green;
             position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            font-size: @size * .8;
-            text-align: center;
-            line-height: @size;
+            left: 50%;
+            top: 50%;
+            transform: translateX(-50%)translateY(-50%);
+            width: 25px;
+            height: 22px;
+            font-size: 25px;
+            line-height: 25px;
         }
     }
 
@@ -414,10 +423,10 @@ body {
 }
 
 .Btn {
-    position: relative;
-    top: calc(100% - @size);
-    left: 0;
-    pointer-events: none;
+    position: absolute;
+    bottom: @size;
+    left: 50%;
+    transform: translateX(-50%);
     width: @size * 3;
     height: @size * 1.1;
     line-height: @size * 1.1;
@@ -428,5 +437,20 @@ body {
     font-size: @size * .5;
     z-index: 1000;
     display: block;
+    user-select: none;
+}
+
+// .win .flag {
+//     &::before {
+//         animation: rotate360 2s infinite linear;
+//     }
+// }
+@keyframes rotate360 {
+    0% {
+        transform: translate(-50%)translateY(-50%)rotate(0);
+    }
+    100% {
+        transform: translate(-50%)translateY(-50%)rotate(360deg);
+    }
 }
 </style>

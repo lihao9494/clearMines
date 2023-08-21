@@ -16,6 +16,7 @@
 
 html {
     font-size: 20px;
+    -ms-touch-action: none;  /* 阻止windows Phone 的默认触摸事件 */
 }
 
 a {

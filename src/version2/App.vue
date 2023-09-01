@@ -1,17 +1,17 @@
 <script setup lang="ts">
-    import { reactive, ref, onUpdated, onMounted } from 'vue';
+    import { reactive, ref, onUpdated, onMounted, Ref } from 'vue';
 
     const mineICON = '●';
-    let firstClick = ref(true);
-    let GameOver = ref('');
-    let minesNum = ref(0);
-    let flagNum = ref(0);
+    const standard = 0.3; // 建议值 0.12 - 0.4
+    let firstClick:Ref<boolean> = ref(true);
+    let GameOver:Ref<string> = ref('');
+    let minesNum:Ref<number> = ref(0);
+    let flagNum:Ref<number> = ref(0);
 
     let touchAllX:number = 0;
 
     // 矩阵【行，列】
     const numSquare:[number, number] = [12, 12];
-    minesNum.value = Math.floor(numSquare[0] * numSquare[1] * 0.18);
     const minesArray:string[] = [];
     interface squareT {
         msg: string,
@@ -19,11 +19,18 @@
         actived: boolean,
         flag: boolean,
         mineClicked: boolean,
+        hint: boolean, // 提示作用
         mines?: boolean,
-        num?: boolean
+        num?: boolean,
     };
     const square:squareT[][] = reactive(new Array(numSquare[0]));
     const openGird:Set<string> = reactive(new Set<string>());
+
+    function setMines () {
+        const minesRandom = Math.random() * standard;
+        minesNum.value = Math.floor(numSquare[0] * numSquare[1] * minesRandom);
+    }
+    setMines();
 
     function newGame () {
         console.log('newGame');
@@ -38,7 +45,8 @@
                 open: false,
                 actived: false,
                 flag: false,
-                mineClicked: false
+                mineClicked: false,
+                hint: false
             };
             square[i] = new Array(numSquare[1]).fill('').map(() => {
                 return Object.assign({}, obj);
@@ -207,13 +215,42 @@
     function openAmbient (rowS: string | number, colS: string | number) {
         if (GameOver.value) return;
 
+        const targetGrid = square[Number(rowS)][Number(colS)];
+        if (!targetGrid.actived) return;
+        
+        // 收集周围九宫格信息
+        let guessGrid:string[] = [];
+        let guessMines:number = 0;
         computedNine(Number(rowS), Number(colS), (iRow:number, iCol:number) => {
             const key = `${iRow},${iCol}`;
             // console.log('Gamebox-mouse-key', key, openGird);
             // 触雷
             const item = square[iRow][iCol]; 
-            if (meetMine(item) && !openGird.has(key)) openGridFunc(iRow, iCol);
+            if (!item.actived && !item.flag) guessGrid.push(key);
+            if (item.flag) guessMines++;
         });
+
+        // 不符合规则提示
+        let allowed = guessMines == Number(targetGrid.msg);
+
+        let guessFunc = function (func:Function) {
+            guessGrid.forEach((key) => {
+                const [ r, c ] = key.split(',');
+                const iRow = Number(r), iCol = Number(c);
+                const item = square[iRow][iCol];
+
+                func && func(item, key, iRow, iCol);
+            });
+        }
+
+        if (allowed) {
+            guessFunc((item:squareT, key:string, iRow:number, iCol:number) => { meetMine(item) && !openGird.has(key) && openGridFunc(iRow, iCol)});
+        } else {
+            guessFunc((item:squareT) => item.hint = true);
+            setTimeout(() => {
+                guessFunc((item:squareT) => item.hint = false)
+            }, 1000)
+        }   
     }
 
     // 插旗/去旗
@@ -267,11 +304,25 @@
 
         changeTouchX = 0;
     }
+
+    // 炸弹数报警
+    function residueMinesColor () {
+        const num = minesNum.value - flagNum.value;
+        const grids = numSquare[0] * numSquare[1];
+        const ratio = num / grids;
+        const standardDiff = standard / 4;
+        if (ratio < standardDiff) return 'blue';
+        else if (ratio < standardDiff * 2) return 'yellow';
+        else if (ratio < standardDiff * 3) return 'orange';
+        else return 'red';
+    }
 </script>
 
 <template>
-    <p class="Upon" v-if="GameOver">{{ GameOver }}</p>
-    <p class="Upon tip" v-else>未标记炸弹数：{{ minesNum - flagNum }}</p>
+    <div class="Upon">
+        <p v-if="GameOver">{{ GameOver }}</p>
+        <p :class="['tip', residueMinesColor()]" v-else @click="setMines()">未标记炸弹数：{{ minesNum - flagNum }}</p>
+    </div>
     <div :class="['game-box', { 'win': GameOver.includes('WIN') }]"
         @mousedown="gameBoxMouseDown"
         @mouseup="gameBoxMouseUp"
@@ -286,7 +337,8 @@
                         'mines': item.mines,
                         'num': item.num,
                         'flag': item.flag,
-                        'trigger': item.mineClicked
+                        'trigger': item.mineClicked,
+                        'hint': item.hint,
                     }]"
                     :data-label="`${row - 1},${col}`"
                     @click.right="onflag(item)"
@@ -294,14 +346,14 @@
                     @click="isWin(row - 1, col)"
                     @touchstart="touchNeedFlag"
                     @touchend="touchSetFlag($event, item)"
-                    @dblclick="openAmbient(row - 1, col);"
+                    @dblclick="openAmbient(row - 1, col)"
                 >
                     <span class="icon">{{ item.msg }}</span>
                 </div>
             </template>
         </div>
     </div>
-    <p class="Btn" @click="newGame()">New Game</p>
+    <p class="Btn" v-if="GameOver" @click="newGame()">New Game</p>
 </template>
 
 <style lang="less">
@@ -318,8 +370,13 @@
     width: 100%;
     text-align: center;
 
-    &.tip {
+    .tip {
         font-size: @size * .5;
+
+        &.red { color: red; }
+        &.orange { color: orange; }
+        &.yellow { color: yellow; }
+        &.blue { color: blue; }
     }
 }
 body {
@@ -359,7 +416,7 @@ body {
         &::before {
             content: '✿';
             display: inline-block;
-            color: green;
+            color: #dc659f;
             position: absolute;
             left: 50%;
             top: 50%;
@@ -379,28 +436,35 @@ body {
         &.on {
             background-color: red;
         }
+    }
 
-        &.trigger {
-            &::before,
-            &::after {
-                content: '';
-                display: inline-block;
-                width: 3px;
-                height: 100%;
-                background-color: blue;
-                position: absolute;
-                left: 42%;
-                top: 2%;
-                z-index: 1;
-            }
+    &.trigger, &.hint {
+        &::before,
+        &::after {
+            content: '';
+            display: inline-block;
+            width: 3px;
+            height: 100%;
+            background-color: blue;
+            position: absolute;
+            left: 46%;
+            top: 0%;
+            z-index: 1;
+        }
 
-            &::before {
-                transform: rotate(-45deg);
-            }
+        &::before {
+            transform: rotate(-45deg);
+        }
 
-            &::after {
-                transform: rotate(45deg);
-            }
+        &::after {
+            transform: rotate(45deg);
+        }
+    }
+
+    &.hint {
+        &::before,
+        &::after {
+            animation: opacity0to1 .5s infinite ease;
         }
     }
 }
@@ -451,6 +515,14 @@ body {
     }
     100% {
         transform: translate(-50%)translateY(-50%)rotate(360deg);
+    }
+}
+@keyframes opacity0to1 {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: .8;
     }
 }
 </style>

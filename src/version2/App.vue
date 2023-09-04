@@ -2,11 +2,12 @@
     import { reactive, ref, onUpdated, onMounted, Ref } from 'vue';
 
     const mineICON = '●';
-    const standard = 0.3; // 建议值 0.12 - 0.4
+    const standard = 0.3; // 建议值 0.12 - 0.3
     let firstClick:Ref<boolean> = ref(true);
     let GameOver:Ref<string> = ref('');
-    let minesNum:Ref<number> = ref(0);
     let flagNum:Ref<number> = ref(0);
+    let minesNum:Ref<number> = ref(0);
+    let winNum = 0;
 
     let touchAllX:number = 0;
 
@@ -29,6 +30,11 @@
     function setMines () {
         const minesRandom = Math.random() * standard;
         minesNum.value = Math.floor(numSquare[0] * numSquare[1] * minesRandom);
+        if (minesNum.value == 0) {
+            setMines();
+            return;
+        }
+        winNum = numSquare[0] * numSquare[1] - minesNum.value;
     }
     setMines();
 
@@ -166,16 +172,14 @@
     }
 
     // 判赢
-    const winNum = numSquare[0] * numSquare[1] - minesNum.value;
     async function isWin(row:number, col:number) {
         if (GameOver.value.includes('LOSE')) return;
         changeActived(row, col);
     }
 
-    // 禁用鼠标右键触发的菜单
-    window.document.oncontextmenu = function(){ return false; }
-
+    // 判赢
     onUpdated(() => {
+        console.log('onUpdated');
         if (openGird.size == winNum && GameOver.value == '') GameOver.value = 'WIN!';
     });
     
@@ -184,6 +188,9 @@
         let width = document.querySelector('.one-grid')?.getBoundingClientRect().width;
         touchAllX = Number(width) / 5;
     });
+
+    // 禁用鼠标右键触发的菜单
+    window.document.oncontextmenu = function(){ return false; }
 
     // 左右键功能
     let mousedownStartTime:Date | null = null;
@@ -212,6 +219,8 @@
     }
 
     // 展开周围九格
+    let hintsetTimeoutID:NodeJS.Timeout | undefined;
+    let prevHintGrid:string[] = [];
     function openAmbient (rowS: string | number, colS: string | number) {
         if (GameOver.value) return;
 
@@ -233,7 +242,7 @@
         // 不符合规则提示
         let allowed = guessMines == Number(targetGrid.msg);
 
-        let guessFunc = function (func:Function) {
+        let guessFunc = function (guessGrid:string[] ,func:Function) {
             guessGrid.forEach((key) => {
                 const [ r, c ] = key.split(',');
                 const iRow = Number(r), iCol = Number(c);
@@ -244,12 +253,21 @@
         }
 
         if (allowed) {
-            guessFunc((item:squareT, key:string, iRow:number, iCol:number) => { meetMine(item) && !openGird.has(key) && openGridFunc(iRow, iCol)});
+            guessFunc(guessGrid, (item:squareT, key:string, iRow:number, iCol:number) => { meetMine(item) && !openGird.has(key) && openGridFunc(iRow, iCol)});
         } else {
-            guessFunc((item:squareT) => item.hint = true);
+            if (hintsetTimeoutID) {
+                clearTimeout(hintsetTimeoutID);
+                hintsetTimeoutID = undefined;
+                guessFunc(prevHintGrid, (item:squareT) => item.hint = false);
+            }
             setTimeout(() => {
-                guessFunc((item:squareT) => item.hint = false)
-            }, 1000)
+                console.log('setTimeout');
+                prevHintGrid = JSON.parse(JSON.stringify(guessGrid));
+                guessFunc(prevHintGrid, (item:squareT) => item.hint = true);
+                hintsetTimeoutID = setTimeout(() => {
+                    guessFunc(prevHintGrid, (item:squareT) => item.hint = false)
+                }, 1000)
+            }, 0);
         }   
     }
 
@@ -267,7 +285,7 @@
 
         const item = square[row][col];
         console.log('changeActived', item, row, col);
-        debugger;
+        // debugger;
         meetMine(item) && openGridFunc(row, col);
     }
 
@@ -403,6 +421,7 @@ body {
     font-size: 0;
     transition: all .15s;
     overflow: hidden;
+    user-select: none;
 
     &.on {
         font-size: @size * .6;

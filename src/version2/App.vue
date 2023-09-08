@@ -324,11 +324,15 @@
     }
 
     // 炸弹数报警
-    function residueMinesColor () {
-        const num = minesNum.value - flagNum.value;
+    function residueMinesColor (minesNum:number, flagNum:number) {
+        const num = minesNum - flagNum;
         const grids = numSquare[0] * numSquare[1];
         const ratio = num / grids;
         const standardDiff = standard / 4;
+        return degreeColor(ratio, standardDiff);
+    }
+
+    function degreeColor (ratio:number, standardDiff:number) {
         if (ratio < standardDiff) return 'blue';
         else if (ratio < standardDiff * 2) return 'yellow';
         else if (ratio < standardDiff * 3) return 'orange';
@@ -339,7 +343,10 @@
 <template>
     <div class="Upon">
         <p v-if="GameOver">{{ GameOver }}</p>
-        <p :class="['tip', residueMinesColor()]" v-else @click="setMines()">未标记炸弹数：{{ minesNum - flagNum }}</p>
+        <p :class="['tip', residueMinesColor(minesNum, flagNum)]" v-else @click="setMines()">
+            未标记炸弹数：{{ minesNum - flagNum }}
+            <span :class="residueMinesColor(minesNum, 0)">({{ minesNum }})</span>
+        </p>
     </div>
     <div :class="['game-box', { 'win': GameOver.includes('WIN') }]"
         @mousedown="gameBoxMouseDown"
@@ -362,9 +369,9 @@
                     @click.right="onflag(item)"
                     @click.capture="firstClick ? initGame(row - 1, col) : ''"
                     @click="isWin(row - 1, col)"
-                    @touchstart="touchNeedFlag"
-                    @touchend="touchSetFlag($event, item)"
-                    @dblclick="openAmbient(row - 1, col)"
+                    @touchstart.passive="touchNeedFlag"
+                    @touchend.passive="touchSetFlag($event, item)"
+                    @dblclick.self="openAmbient(row - 1, col)"
                 >
                     <span class="icon">{{ item.msg }}</span>
                 </div>
@@ -390,12 +397,12 @@
 
     .tip {
         font-size: @size * .5;
-
-        &.red { color: red; }
-        &.orange { color: orange; }
-        &.yellow { color: yellow; }
-        &.blue { color: blue; }
     }
+
+    .red { color: red; }
+    .orange { color: orange; }
+    .yellow { color: yellow; }
+    .blue { color: blue; }
 }
 body {
     background-color: #111;

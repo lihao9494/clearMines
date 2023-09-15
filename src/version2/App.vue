@@ -3,13 +3,13 @@
 
     const mineICON = '●';
     const standard = 0.3; // 建议值 0.12 - 0.3
-    let firstClick:Ref<boolean> = ref(true);
     let GameOver:Ref<string> = ref('');
     let flagNum:Ref<number> = ref(0);
     let minesNum:Ref<number> = ref(0);
     let winNum = 0;
 
     let touchAllX:number = 0;
+    let firstClick:boolean = true;
 
     // 矩阵【行，列】
     const numSquare:[number, number] = [12, 12];
@@ -23,11 +23,13 @@
         hint: boolean, // 提示作用
         mines?: boolean,
         num?: boolean,
+        falseFlag?: boolean
     };
     const square:squareT[][] = reactive(new Array(numSquare[0]));
     const openGird:Set<string> = reactive(new Set<string>());
 
     function setMines () {
+        if (!firstClick) return;
         const minesRandom = Math.random() * standard;
         minesNum.value = Math.floor(numSquare[0] * numSquare[1] * minesRandom);
         if (minesNum.value == 0) {
@@ -40,7 +42,7 @@
 
     function newGame () {
         console.log('newGame');
-        firstClick.value = true;
+        firstClick = true;
         GameOver.value = '';
         flagNum.value = 0;
         openGird.clear();
@@ -63,7 +65,8 @@
     
     // 初始化游戏
     function initGame(eRow:number, eCol:number):void {
-        firstClick.value = false;
+        if (!firstClick) return;
+        firstClick = false;
         console.log('initGame');
         // 随机放雷
         for (let mineIndex = 0; mineIndex < minesNum.value;) {
@@ -230,13 +233,17 @@
         // 收集周围九宫格信息
         let guessGrid:string[] = [];
         let guessMines:number = 0;
+        let guessFalseFlag:string[] = [];
         computedNine(Number(rowS), Number(colS), (iRow:number, iCol:number) => {
             const key = `${iRow},${iCol}`;
             // console.log('Gamebox-mouse-key', key, openGird);
             // 触雷
             const item = square[iRow][iCol]; 
             if (!item.actived && !item.flag) guessGrid.push(key);
-            if (item.flag) guessMines++;
+            if (item.flag) { 
+                guessMines++;
+                if (item.num || !item.msg) guessFalseFlag.push(key);
+            }
         });
 
         // 不符合规则提示
@@ -253,8 +260,23 @@
         }
 
         if (allowed) {
-            guessFunc(guessGrid, (item:squareT, key:string, iRow:number, iCol:number) => { meetMine(item) && !openGird.has(key) && openGridFunc(iRow, iCol)});
-        } else {
+            // 展开
+            guessFunc(
+                guessGrid, 
+                (item:squareT, key:string, iRow:number, iCol:number) => { 
+                    if (meetMine(item)) {
+                        !openGird.has(key) && openGridFunc(iRow, iCol);
+                        guessFalseFlag.forEach((key) => {
+                            const [ r, c ] = key.split(',');
+                            const iRow = Number(r), iCol = Number(c);
+                            const item = square[iRow][iCol];
+
+                            item.falseFlag = true;
+                        });
+                    }
+                }
+            );
+        } else { // 显示提示
             if (hintsetTimeoutID) {
                 clearTimeout(hintsetTimeoutID);
                 hintsetTimeoutID = undefined;
@@ -359,21 +381,22 @@
                         'one-grid-' + (row - 1) + '-' + col,
                     {
                         'on': item.actived,
-                        'mines': item.mines,
+                        'mines': item.actived && item.mines,
                         'num': item.num,
                         'flag': item.flag,
                         'trigger': item.mineClicked,
                         'hint': item.hint,
+                        'falseFlag': item.falseFlag
                     }]"
                     :data-label="`${row - 1},${col}`"
                     @click.right="onflag(item)"
-                    @click.capture="firstClick ? initGame(row - 1, col) : ''"
+                    @click.capture="initGame(row - 1, col)"
                     @click="isWin(row - 1, col)"
                     @touchstart.passive="touchNeedFlag"
                     @touchend.passive="touchSetFlag($event, item)"
                     @dblclick.self="openAmbient(row - 1, col)"
                 >
-                    <span class="icon">{{ item.msg }}</span>
+                    <span class="icon">{{ item.actived ? item.msg : '' }}</span>
                 </div>
             </template>
         </div>
@@ -451,6 +474,13 @@ body {
             height: 22px;
             font-size: 25px;
             line-height: 25px;
+        }
+
+        &.falseFlag {
+            background-color: #dc659f;
+            &::before {
+                color: #eee;
+            }
         }
     }
 

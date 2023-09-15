@@ -11,5 +11,8 @@ export default defineConfig({
                 charset: false
             },
         }
-    }
+    },
+	build: {
+		outDir: '../../../dist'
+	}
 })
